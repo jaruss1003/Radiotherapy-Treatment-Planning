@@ -67,10 +67,10 @@ for j, (ang, c) in enumerate(beamlets):
     atten = np.exp(-MU * np.clip(depth, 0, None))
 
     # 4. strip: True where a voxel is in this strip. In = size of (s - c) at most half the width of the strip.
-    In = np.abs(s - c) <= STRIP_W / 2.0
+    strip = np.abs(s - c) <= STRIP_W / 2.0
 
     # 5. column j of A: atten in the strip, SCATTER * atten outside it. Tool:
-    A[:, j] = np.where(In,atten, SCATTER * atten)
+    A[:, j] = np.where(strip,atten, SCATTER * atten)
 
 row_of = {v: k for k, v in enumerate(idx_body)}
 t_rows = [row_of[i] for i in np.where(tumor)[0]]
