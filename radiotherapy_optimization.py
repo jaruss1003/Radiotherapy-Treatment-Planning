@@ -189,7 +189,7 @@ m_opt = metrics(x_opt)
 
 # ---------- 7. Sensitivity sweep ----------
 
-limits = [30, 36, 42, 24, 18, 12]   # start at the rule itself (30), then looser, then tighter
+limits = [42, 36, 30, 24, 18, 12]   
 sweep_rows = []
 base_hm = None
 
@@ -201,11 +201,13 @@ for lim in limits:
         continue
     m = metrics(r.x)
     sweep_rows.append((lim, m["healthy_mean"]))
-    if base_hm is None:
+
+    if lim == D_OAR:
         base_hm = m["healthy_mean"]
         print(lim, round(m["healthy_mean"], 3), "<- the rule")
     else:
-        print(lim, round(m["healthy_mean"], 3), f"({m['healthy_mean'] - base_hm:+.3f} vs the rule)")
+        print(lim, round(m["healthy_mean"], 3))
+
 
 # Feasibility boundary: bisect the gap the sweep jumps over (30 works, 24
 # does not) to find the smallest organ limit that still admits a plan.

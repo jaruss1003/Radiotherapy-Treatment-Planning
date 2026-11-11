@@ -27,9 +27,9 @@ Healthy cap: 7 healthy voxels at the 65 Gy cap (min slack -1.42e-14)
 Shadow price: dual -0.1844 | re-solve -0.1760 (Gy of objective per Gy of organ limit)
 
 Sweep (organ limit -> healthy mean dose):
-  30 Gy -> 24.621 Gy  <- the rule
-  36 Gy -> 23.378 Gy (-1.243 vs the rule)
   42 Gy -> 23.291 Gy (-1.330 vs the rule)
+  36 Gy -> 23.378 Gy (-1.243 vs the rule)
+  30 Gy -> 24.621 Gy  <- the rule
   24 Gy -> infeasible
   18 Gy -> infeasible
   12 Gy -> infeasible
