@@ -10,7 +10,7 @@ The phantom is a simulated two-dimensional slice (40 × 40 grid, 944 voxels): an
 irregular tumor (112 voxels), one nearby organ at risk (59 voxels), and healthy
 tissue. Doses are in real Gray — a 60 Gy prescription and a 30 Gy organ limit.
 
-**Case study:** [jacobruss.pages.dev/#/projects/radiotherapy-treatment-planning](https://jacobruss.pages.dev/#/projects/radiotherapy-treatment-planning)
+**Portfolio Page:** [jacobruss.pages.dev/#/projects/radiotherapy-treatment-planning](https://jacobruss.pages.dev/#/projects/radiotherapy-treatment-planning)
 
 ## Key Findings
 
