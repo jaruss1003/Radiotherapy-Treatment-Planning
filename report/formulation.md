@@ -25,7 +25,7 @@ d_i is the total dose at voxel i - the sum of all beamlets' effeciencies multipl
 ## 5. Assumptions
 
 1. The body is a 2D slice
-2. Doses add linearly and beamlets don't interact: double a beamlet's strength and you double it dose everywhere
+2. Doses add linearly and beamlets don't interact: double a beamlet's strength and you double its dose everywhere
 3. Doses fade as depth increases in a fixed manner
 4. Doses are in Gray (Gy), the real unit of radiation dose — the prescription is 60 Gy, a typical curative dose. The geometry and physics are still simplified
 5. There's exactly one tumor and one organ
