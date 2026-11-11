@@ -28,6 +28,9 @@ SCATTER = 0.002                       # tiny dose every voxel gets, even outside
 D_RX = 60.0                           # prescription dose in Gy - every tumor voxel must get at least this
 D_OAR = 30.0                          # organ limit in Gy - no organ voxel may get more than this
 W_OAR = 3.0                           # organ weight in the objective - organ dose counts 3 times as much
+D_HEALTHY_MAX = 65.0                  # healthy cap in Gy - no healthy voxel may get more than this;
+                                      # just under the baseline healthy max (65.1), so the optimized plan cannot create a worse hot spot than the naive plan.
+
 
 # ---------- 2. Phantom ----------
 
@@ -141,11 +144,11 @@ fig.savefig(FIG / "fig1_phantom.png", dpi=200, bbox_inches="tight")
 
 # ---------- 4. Solver ----------
 
-def solve_lp(d_rx=D_RX, d_oar=D_OAR):
+def solve_lp(d_rx=D_RX, d_oar=D_OAR, d_hmax=D_HEALTHY_MAX):
     n =len(h_rows) + W_OAR * len(o_rows)
     c_obj = (A_H.sum(axis=0) + W_OAR * A_O.sum(axis=0)) / n
-    A_ub = np.vstack([-A_T, A_O])
-    b_ub = np.concatenate([np.full(len(t_rows), -d_rx), np.full(len(o_rows), d_oar)])
+    A_ub = np.vstack([-A_T, A_O, A_H])
+    b_ub = np.concatenate([np.full(len(t_rows), -d_rx), np.full(len(o_rows), d_oar), np.full(len(h_rows), d_hmax)])
 
     return linprog(c_obj, A_ub=A_ub, b_ub=b_ub, bounds=(0, None), method="highs")
 
@@ -186,13 +189,40 @@ m_opt = metrics(x_opt)
 
 # ---------- 7. Sensitivity sweep ----------
 
-limits = [42, 36, 30, 24, 18, 12]
+limits = [30, 36, 42, 24, 18, 12]   # start at the rule itself (30), then looser, then tighter
 sweep_rows = []
+base_hm = None
+
 for lim in limits:
     r = solve_lp(D_RX, lim)
+    if not r.success:
+        sweep_rows.append((lim, None))
+        print(lim, "infeasible - no plan satisfies all three rules")
+        continue
     m = metrics(r.x)
     sweep_rows.append((lim, m["healthy_mean"]))
-    print(lim, round(m["healthy_mean"], 3))
+    if base_hm is None:
+        base_hm = m["healthy_mean"]
+        print(lim, round(m["healthy_mean"], 3), "<- the rule")
+    else:
+        print(lim, round(m["healthy_mean"], 3), f"({m['healthy_mean'] - base_hm:+.3f} vs the rule)")
+
+# Feasibility boundary: bisect the gap the sweep jumps over (30 works, 24
+# does not) to find the smallest organ limit that still admits a plan.
+feas = [lim for lim, hm in sweep_rows if hm is not None]
+infeas = [lim for lim, hm in sweep_rows if hm is None]
+wall = None
+if feas and infeas:
+    lo, hi = max(infeas), min(feas)   # lo infeasible, hi feasible
+    for _ in range(20):
+        mid = 0.5 * (lo + hi)
+        if solve_lp(D_RX, mid).success:
+            hi = mid
+        else:
+            lo = mid
+    wall = hi
+    print(f"smallest feasible organ limit: {wall:.2f} Gy - the {D_OAR:.0f} Gy rule has {D_OAR - wall:.2f} Gy of wiggle room")
+
 
 # Binding proof: slack under the optimized plan
 d_opt = A @ x_opt
@@ -200,12 +230,15 @@ oar_slack = D_OAR - d_opt[o_rows]
 n_oar_at_limit = int((oar_slack < 1e-6).sum())
 tum_slack = d_opt[t_rows] - D_RX
 n_tum_at_rx = int((tum_slack < 1e-6).sum())
+h_slack = D_HEALTHY_MAX - d_opt[h_rows]
+n_h_at_cap = int((h_slack < 1e-6).sum())
 print("organ min slack:", oar_slack.min(), "| organ voxels at limit:", n_oar_at_limit)
+print("healthy voxels at cap:", n_h_at_cap)
 print("tumor voxels at prescription:", n_tum_at_rx, "of", len(t_rows))
 
 
 # Shadow price of the organ limit, two ways
-duals = res.ineqlin.marginals[len(t_rows):]
+duals = res.ineqlin.marginals[len(t_rows):len(t_rows) + len(o_rows)]
 price_dual = float(duals.sum())
 r_lo = solve_lp(D_RX, 29.4)
 r_hi = solve_lp(D_RX, 30.6)
@@ -298,12 +331,28 @@ fig.savefig(FIG / "fig3_dvh.png", dpi=200, bbox_inches="tight")
 
 # Figure 4: Sensitivity — healthy mean dose vs organ limit
 fig, ax = plt.subplots()
-xs = [row[0] for row in sweep_rows]
-ys = [row[1] for row in sweep_rows]
+pts = sorted((row for row in sweep_rows if row[1] is not None), key=lambda r: r[0])
+xs = [row[0] for row in pts]
+ys = [row[1] for row in pts]
 ax.plot(xs, ys, marker="o")
+
+# Point labels
+
+for x, y in zip(xs, ys):
+    ax.annotate(f"{y:.2f}", (x, y), textcoords="offset points", xytext=(0, 7), ha="center", fontsize=8)
+
+# What to do if some organ limits are infeasible (no plan satisfies all three rules)
+
+if wall is not None:
+    ax.axvspan(20, wall, color="gray", alpha=0.15)
+    ax.axvline(wall, color="gray", linestyle="--", linewidth=1)
+    ax.text((20 + wall) / 2, 0.5, f"infeasible\nbelow {wall:.2f} Gy", ha="center", va="center", fontsize=8, transform=ax.get_xaxis_transform())
+
+ax.set_xlim(20, 44)
+ax.set_ylim(20, 26)
 ax.set_xlabel("Organ dose limit (Gy)")
 ax.set_ylabel("Healthy mean dose (Gy)")
-ax.set_title("Sensitivity: healthy dose vs organ limit")
+ax.set_title("Sensitivity: Healthy Dose vs Organ Limit")
 fig.savefig(FIG / "fig4_sensitivity.png", dpi=200, bbox_inches="tight")
 
 
@@ -339,9 +388,22 @@ for k, v in m_opt.items():
     L.append(f"  {k}: {v}")
 L.append("")
 L.append(f"Binding: organ voxels at limit: {n_oar_at_limit} (min slack {oar_slack.min():.2e}) | tumor voxels at prescription: {n_tum_at_rx} of {len(t_rows)}")
+L.append(f"Healthy cap: {n_h_at_cap} healthy voxels at the {D_HEALTHY_MAX:.0f} Gy cap (min slack {h_slack.min():.2e})")
 L.append(f"Shadow price: dual {price_dual:.4f} | re-solve {price_fd:.4f} (Gy of objective per Gy of organ limit)")
 L.append("")
 L.append("Sweep (organ limit -> healthy mean dose):")
+
 for lim, hm in sweep_rows:
-    L.append(f"  {lim} Gy -> {hm:.3f} Gy")
+    if hm is None:
+        L.append(f"  {lim} Gy -> infeasible")
+    elif lim == D_OAR:
+        L.append(f"  {lim} Gy -> {hm:.3f} Gy  <- the rule")
+    else:
+        L.append(f"  {lim} Gy -> {hm:.3f} Gy ({hm - base_hm:+.3f} vs the rule)")
+
+if wall is not None:
+    L.append("")
+    L.append(f"Feasibility boundary: smallest feasible organ limit {wall:.2f} Gy - the {D_OAR:.0f} Gy rule leaves {D_OAR - wall:.2f} Gy of wiggle room")
+
+
 (Path(__file__).parent / "results.txt").write_text("\n".join(L) + "\n")

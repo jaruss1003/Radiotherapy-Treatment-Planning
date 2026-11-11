@@ -12,23 +12,26 @@ BASELINE (equal beamlets, scaled to prescription)
   oar_violations: 59.0
   beamlets_used: 105.0
 OPTIMIZED (linear programming)
-  tumor_min: 59.99999999999992
-  tumor_mean: 74.53745021523854
+  tumor_min: 59.99999999999995
+  tumor_mean: 73.05618317028886
   tumor_cov95: 100.0
-  healthy_mean: 24.135714187155077
-  healthy_max: 88.36075519269502
-  oar_mean: 7.76561660178269
-  oar_max: 30.000000000000007
+  healthy_mean: 24.62099369933984
+  healthy_max: 65.00000000000001
+  oar_mean: 10.81096346319387
+  oar_max: 30.000000000000014
   oar_violations: 0.0
-  beamlets_used: 21.0
+  beamlets_used: 24.0
 
-Binding: organ voxels at limit: 2 (min slack -7.11e-15) | tumor voxels at prescription: 19 of 112
-Shadow price: dual -0.0640 | re-solve -0.0651 (Gy of objective per Gy of organ limit)
+Binding: organ voxels at limit: 2 (min slack -1.42e-14) | tumor voxels at prescription: 15 of 112
+Healthy cap: 7 healthy voxels at the 65 Gy cap (min slack -1.42e-14)
+Shadow price: dual -0.1844 | re-solve -0.1760 (Gy of objective per Gy of organ limit)
 
 Sweep (organ limit -> healthy mean dose):
-  42 Gy -> 23.433 Gy
-  36 Gy -> 23.439 Gy
-  30 Gy -> 24.136 Gy
-  24 Gy -> 25.060 Gy
-  18 Gy -> 25.924 Gy
-  12 Gy -> 26.862 Gy
+  30 Gy -> 24.621 Gy  <- the rule
+  36 Gy -> 23.378 Gy (-1.243 vs the rule)
+  42 Gy -> 23.291 Gy (-1.330 vs the rule)
+  24 Gy -> infeasible
+  18 Gy -> infeasible
+  12 Gy -> infeasible
+
+Feasibility boundary: smallest feasible organ limit 26.66 Gy - the 30 Gy rule leaves 3.34 Gy of wiggle room
