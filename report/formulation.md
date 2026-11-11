@@ -1,6 +1,7 @@
 ## 1. Variables
 
 x_j is the beam strength of an individual beamlet
+
 x_j must be greater than or equal to 0 because the beamlet is either on and producing a beam (greater than 0) or off and not producing a beam (zero)
 
 ## 2. Dose Rule
