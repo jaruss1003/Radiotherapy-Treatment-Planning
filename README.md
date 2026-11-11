@@ -10,23 +10,34 @@ The phantom is a simulated two-dimensional slice (40 × 40 grid, 944 voxels): an
 irregular tumor (112 voxels), one nearby organ at risk (59 voxels), and healthy
 tissue. Doses are in real Gray — a 60 Gy prescription and a 30 Gy organ limit.
 
+**Case study:** [jacobruss.pages.dev/#/projects/radiotherapy-treatment-planning](https://jacobruss.pages.dev/#/projects/radiotherapy-treatment-planning)
+
 ## Key Findings
 
-- **Organ mean dose: 61.4 Gy → 7.8 Gy (−87%)** versus an equal-beamlet baseline
+- **Organ mean dose: 61.4 Gy → 10.8 Gy (−82%)** versus an equal-beamlet baseline
   scaled to the same tumor prescription.
 - **Organ limit violations: 59 of 59 → 0.** The optimized organ maximum sits
   exactly at the 30 Gy limit — the constraint binds (2 voxels), it is not luck.
+- **Healthy hot spots are capped:** no healthy voxel exceeds 65 Gy — the
+  optimized maximum is exactly 65.0 Gy, binding at 7 voxels. The cap is set just
+  under the baseline's own healthy maximum (65.1 Gy), so the optimized plan
+  cannot create a worse hot spot than the naive plan. Without it, this same
+  model drives one border voxel to 88.4 Gy.
 - **The tumor guarantee is kept exactly:** minimum tumor dose 60.0 Gy and 100%
-  coverage in both plans; healthy-tissue mean dose falls 62.5 → 24.1 Gy.
-- **The optimum is sparse:** only 21 of the 105 beamlets are used, as expected
+  coverage in both plans; healthy-tissue mean dose falls 62.5 → 24.6 Gy.
+- **The optimum is sparse:** only 24 of the 105 beamlets are used, as expected
   for a vertex solution of an LP.
-- **Protection is priced, and it is cheap:** the shadow price of the organ limit
-  is ≈ −0.065 Gy of objective per Gy of limit (solver duals −0.064, confirmed by
-  re-solving: −0.065). Sweeping the limit from 42 down to 12 Gy raises healthy
-  mean dose only 23.4 → 26.9 Gy.
-- **Two honest costs:** the healthy maximum dose rises to 88.4 Gy (one voxel on
-  the tumor's border), and the tumor mean rises to 74.5 Gy — the objective never
-  charges for dose inside the tumor, it only enforces the 60 Gy floor.
+- **Protection is priced:** the shadow price of the organ limit is ≈ −0.18 Gy
+  of objective per Gy of limit (solver duals −0.184, confirmed by re-solving:
+  −0.176) — about three times the price the same geometry reports without the
+  healthy cap. Banning hot spots reprices protection.
+- **Sensitivity has a wall:** the sweep starts at the 30 Gy rule and reports
+  every other limit against it — loosening to 42 Gy buys just −1.330 Gy of
+  healthy mean dose, and tightening runs into a wall. Bisecting the gap puts
+  the smallest feasible organ limit at 26.66 Gy: the rule has 3.34 Gy of
+  wiggle room, and below the wall the three rules admit no plan at all.
+- **One honest cost remains:** the tumor mean rises to 73.1 Gy — the objective
+  never charges for dose inside the tumor, it only enforces the 60 Gy floor.
 
 ## The model
 
@@ -37,7 +48,8 @@ tissue. Doses are in real Gray — a 60 Gy prescription and a 30 Gy organ limit.
   0.2% scatter contribution outside it.
 - **Objective:** minimize the weighted mean dose outside the tumor; organ voxels
   count 3×.
-- **Constraints:** every tumor voxel ≥ 60 Gy; every organ voxel ≤ 30 Gy.
+- **Constraints:** every tumor voxel ≥ 60 Gy; every organ voxel ≤ 30 Gy;
+  every healthy voxel ≤ 65 Gy (hot-spot cap).
 - **Solver:** SciPy `linprog` (HiGHS).
 
 The full formulation, in the author's words, is in
