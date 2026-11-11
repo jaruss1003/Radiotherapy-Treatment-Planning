@@ -16,9 +16,10 @@ from matplotlib.colors import ListedColormap
 
 FIG = Path(__file__).parent / "figures" 
 
-N = 30                                # grid size - the slice is a 30 x 30 grid of points
-TUMOR_C = np.array([0.15, 0.10]);  TUMOR_R = 0.32   # tumor center (x, y) and radius
-OAR_C   = np.array([0.52, -0.35]); OAR_R   = 0.22   # organ center and radius - placed close to the tumor on purpose
+N = 40                                # grid size - the slice is a 40 x 40 grid of points
+TUMOR_C = np.array([0.15, 0.10]);  TUMOR_R = 0.30   # tumor center (x, y) and radius
+OAR_C = TUMOR_C + 0.44 * np.array([0.635, -0.772])
+OAR_RADII = (0.30, 0.16);  OAR_ROT = 39.0
 ANGLES_DEG = [0, 51, 103, 154, 206, 257, 309]       # the 7 beam directions, in degrees
 BEAMLET_CENTERS = np.linspace(-0.9, 0.9, 15)        # positions of the 15 beamlets in each direction
 STRIP_W = BEAMLET_CENTERS[1] - BEAMLET_CENTERS[0]   # beamlet width, measured from the centers - do not type a rounded value, it changes the results
@@ -35,15 +36,33 @@ ys = np.linspace(-1, 1, N)
 XX, YY = np.meshgrid(xs, ys)
 pts = np.column_stack([XX.ravel(), YY.ravel()])
 
-# Worked example: a point is in the body if its
-# distance from (0, 0) is at most 0.98.
-body = np.hypot(pts[:, 0], pts[:, 1]) <= 0.98
+# Body: an ellipse — wider (0.99) than tall (0.80),
+# like a torso cross-section.
+body = (pts[:, 0] / 0.99) ** 2 + (pts[:, 1] / 0.80) ** 2 <= 1
 
-tumor = (np.hypot(pts[:, 0] - TUMOR_C[0], pts[:, 1] - TUMOR_C[1]) <= TUMOR_R) & body 
+# Tumor: a blob. Its radius wobbles with direction —
+# two sine waves over the angle around the center —
+# so the edge is irregular, like a real mass.
+dx = pts[:, 0] - TUMOR_C[0]
+dy = pts[:, 1] - TUMOR_C[1]
+r = np.hypot(dx, dy)
+theta = np.arctan2(dy, dx)
+r_eff = TUMOR_R * (1 + 0.16 * np.sin(3 * theta + 0.7)
+                     + 0.10 * np.sin(5 * theta + 2.1))
+tumor = (r <= r_eff) & body
 
-oar = (np.hypot(pts[:, 0] - OAR_C[0], pts[:, 1] - OAR_C[1]) <= OAR_R) & body & ~tumor
+# Organ: an elongated ellipse, tilted 39 degrees.
+# u, v are the point's coordinates in the organ's
+# own rotated frame.
+dxo = pts[:, 0] - OAR_C[0]
+dyo = pts[:, 1] - OAR_C[1]
+rot = np.deg2rad(OAR_ROT)
+u = dxo * np.cos(rot) + dyo * np.sin(rot)
+v = -dxo * np.sin(rot) + dyo * np.cos(rot)
+oar = ((u / OAR_RADII[0]) ** 2 + (v / OAR_RADII[1]) ** 2 <= 1) & body & ~tumor
 
 healthy = body & ~tumor & ~oar
+print(body.sum(), tumor.sum(), oar.sum(), healthy.sum())
 
 # ---------- 3. Dose matrix ----------
 idx_body = np.where(body)[0]
@@ -81,45 +100,42 @@ h_rows = [row_of[i] for i in np.where(healthy)[0]]
 A_T, A_O, A_H = A[t_rows], A[o_rows], A[h_rows]
 
 
-# Building the picture grid
+# Building the anatomy grid (grayscale, like a scan)
+img = np.ones((N, N))
+img[healthy.reshape(N, N)] = 0.66
+img[oar.reshape(N, N)] = 0.43
+img[tumor.reshape(N, N)] = 0.27
 
-img = np.zeros((N,N))
+# Texture: seeded grain, a different amount per tissue
+rng = np.random.default_rng(7)
+noise = rng.normal(0, 1, img.shape)
+tex = img.copy()
+tex[healthy.reshape(N, N)] += 0.045 * noise[healthy.reshape(N, N)]
+tex[oar.reshape(N, N)] += 0.030 * noise[oar.reshape(N, N)]
+tex[tumor.reshape(N, N)] += 0.055 * noise[tumor.reshape(N, N)]
+img = np.clip(tex, 0, 1)
 
-img[body.reshape(N,N)] = 0.2
-img[healthy.reshape(N,N)] = 0.4
-img[oar.reshape(N,N)] = 0.7
-img[tumor.reshape(N,N)] = 1.0
-
-# Plottting picture grid
-cmap_phantom = ListedColormap(["white", "lightsteelblue", "orange", "red"])
+# Plotting the anatomy grid
 fig, ax = plt.subplots()
-ax.imshow(img, cmap=cmap_phantom, extent=(-1, 1, -1, 1), origin="lower")
+ax.imshow(img, cmap="gray", vmin=0, vmax=1, extent=(-1, 1, -1, 1), origin="lower")
 
-# Loop over ANGLES_DEG; for each, the direction is the (cos, sin) pair 
 for a_deg in ANGLES_DEG:
     d = np.array([np.cos(np.deg2rad(a_deg)), np.sin(np.deg2rad(a_deg))])
     ax.annotate("", xy=-1.05 * d, xytext=-1.35 * d, arrowprops=dict(arrowstyle="->"))
 
-
-# Widen frame so that the arrows are not cut off
 ax.set_xlim(-1.4, 1.4)
 ax.set_ylim(-1.4, 1.4)
 
-# Legend: add colored squares for tumor, organ at risk, and healthy tissue
 legend_handles = [
-    Patch(color="lightsteelblue", label="Healthy tissue"),
-    Patch(color="orange", label="Organ at risk"),
-    Patch(color="red", label="Tumor"),
+    Patch(color=(0.66, 0.66, 0.66), label="Healthy tissue"),
+    Patch(color=(0.43, 0.43, 0.43), label="Organ at risk"),
+    Patch(color=(0.27, 0.27, 0.27), label="Tumor"),
 ]
-
 ax.legend(handles=legend_handles, loc="upper left", bbox_to_anchor=(1.02, 1.0))
 
-# Label x and y axes and add a title
 ax.set_xlabel("X Position")
 ax.set_ylabel("Y Position")
-ax.set_title("Phantom - tumor and organ at risk")
-
-# save figure
+ax.set_title("Phantom - Tumor and Organ at Risk")
 
 fig.savefig(FIG / "fig1_phantom.png", dpi=200, bbox_inches="tight")
 
@@ -190,7 +206,7 @@ print("tumor voxels at prescription:", n_tum_at_rx, "of", len(t_rows))
 
 # Shadow price of the organ limit, two ways
 duals = res.ineqlin.marginals[len(t_rows):]
-price_dual = float(duals.min())
+price_dual = float(duals.sum())
 r_lo = solve_lp(D_RX, 29.4)
 r_hi = solve_lp(D_RX, 30.6)
 price_fd = (r_hi.fun - r_lo.fun) / 1.2
@@ -208,8 +224,8 @@ def dose_grid(x):
 # Dose heatmaps
 
 fig, axes = plt.subplots(1, 2, figsize=(11,5))
-axes[0].imshow(dose_grid(x_base), vmin=0, vmax=84, cmap="inferno", extent=(-1, 1, -1, 1), origin="lower")
-im = axes[1].imshow(dose_grid(x_opt), vmin=0, vmax=84, cmap="inferno", extent=(-1, 1, -1, 1), origin="lower")
+axes[0].imshow(dose_grid(x_base), vmin=0, vmax=90, cmap="inferno", extent=(-1, 1, -1, 1), origin="lower")
+im = axes[1].imshow(dose_grid(x_opt), vmin=0, vmax=90, cmap="inferno", extent=(-1, 1, -1, 1), origin="lower")
 
 
 # Outline the tumor (white) and the organ (cyan) on both maps
