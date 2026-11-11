@@ -1,0 +1,34 @@
+RADIOTHERAPY TREATMENT PLANNING - RESULTS
+Phantom: body 632 | tumor 66 | organ 32 | healthy 534 | beamlets 105
+
+BASELINE (equal beamlets, scaled to prescription)
+  tumor_min: 60.000000000000014
+  tumor_mean: 60.44482185883104
+  tumor_cov95: 100.0
+  healthy_mean: 62.711345756421004
+  healthy_max: 65.25572769383592
+  oar_mean: 62.24313699028211
+  oar_max: 63.775398662309144
+  oar_violations: 32.0
+  beamlets_used: 105.0
+OPTIMIZED (linear programming)
+  tumor_min: 59.999999999999986
+  tumor_mean: 61.92512441285662
+  tumor_cov95: 100.0
+  healthy_mean: 21.759896783149408
+  healthy_max: 80.49841363397405
+  oar_mean: 5.477655085407402
+  oar_max: 30.000000000000004
+  oar_violations: 0.0
+  beamlets_used: 22.0
+
+Binding: organ voxels at limit: 1 (min slack -3.55e-15) | tumor voxels at prescription: 21 of 66
+Shadow price: dual -0.0185 | re-solve -0.0186 (Gy of objective per Gy of organ limit)
+
+Sweep (organ limit -> healthy mean dose):
+  42 Gy -> 21.604 Gy
+  36 Gy -> 21.672 Gy
+  30 Gy -> 21.760 Gy
+  24 Gy -> 21.959 Gy
+  18 Gy -> 22.157 Gy
+  12 Gy -> 22.520 Gy
